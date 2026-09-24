@@ -1,5 +1,7 @@
 # MTG Life Counter (LVGL, dual-board)
 
+![CI](https://github.com/REPLACE_WITH_YOUR_USERNAME/mtg-life-counter/actions/workflows/ci.yml/badge.svg)
+
 A Magic: The Gathering life counter for your two round 240x240 displays:
 
 - **Meshnology ESP32-S3** — this is an Elecrow CrowPanel 1.28" ESP32-S3
@@ -13,6 +15,30 @@ One shared LVGL codebase drives both. Board differences (pins, which input
 device exists) live entirely in `boards/board_config.h` and
 `src/input_driver.*`; the screens in `src/screens/` don't know or care
 which board they're running on.
+
+## Hardware you'll need
+
+Per player (or per device you want at the table — table sync links any
+mix of these together, see below):
+
+- One of:
+  - **Meshnology ESP32-S3 Rotary Display** — sold as the Elecrow CrowPanel
+    1.28" ESP32-S3 Rotary Display. Round 240×240 GC9A01 panel,
+    CST816D capacitive touch, a physical rotary encoder with a
+    push-button, and an onboard WS2812 ambient RGB LED — all on one
+    board, nothing extra to wire up.
+  - **DIYmalls ESP32-C3 round touch display** (ESP32-2424S012C-I-Y(B)) —
+    round 240×240 GC9A01 panel + CST816S capacitive touch, no encoder, no
+    onboard LED strip.
+- A USB-C cable to match (data-capable, not charge-only) to flash and
+  power each board.
+- A computer with [PlatformIO](https://platformio.org/) installed to
+  build and flash the firmware (see Building, below).
+
+Nothing else is required — no soldering, no external LEDs/buttons/wiring.
+Table sync is pure firmware (ESP-NOW over the boards' built-in WiFi
+radios), so no extra hardware is needed for that either. Any combination
+of the two boards can share one table.
 
 ## Features (v2)
 
