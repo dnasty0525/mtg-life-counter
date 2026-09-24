@@ -231,4 +231,7 @@ serial log if it's a boot/crash problem) or send a PR.
 
 ## License
 
-[MIT](LICENSE) — see the LICENSE file for the full text.
+[GPL-3.0](LICENSE) — see the LICENSE file for the full text. Anyone can
+use, study, and modify this code; anyone who distributes a modified
+version (including on a device they sell) must also make that version's
+source available under GPL-3.0.
