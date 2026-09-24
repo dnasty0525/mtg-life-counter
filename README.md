@@ -1,6 +1,6 @@
 # MTG Life Counter (LVGL, dual-board)
 
-![CI](https://github.com/REPLACE_WITH_YOUR_USERNAME/mtg-life-counter/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/dnasty0525/mtg-life-counter/actions/workflows/ci.yml/badge.svg)
 
 A Magic: The Gathering life counter for your two round 240x240 displays:
 
@@ -110,6 +110,9 @@ tools/pin_finder/         standalone GPIO-scanner sketch (kept for any future bo
 Requires [PlatformIO](https://platformio.org/) (CLI or the VS Code extension).
 
 ```
+git clone https://github.com/dnasty0525/mtg-life-counter.git
+cd mtg-life-counter
+
 pio run -e diymalls_c3              # build for the touch board
 pio run -e diymalls_c3 -t upload    # flash it
 
