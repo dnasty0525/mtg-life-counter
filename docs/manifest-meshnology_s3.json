@@ -1,0 +1,16 @@
+{
+  "name": "MTG Life Counter — Meshnology ESP32-S3 (rotary)",
+  "version": "latest",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        {
+          "path": "https://github.com/dnasty0525/mtg-life-counter/releases/latest/download/mtg-life-counter-meshnology_s3.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}

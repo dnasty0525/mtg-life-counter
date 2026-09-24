@@ -1,0 +1,81 @@
+name: Release firmware
+
+# Builds both boards' firmware, merges each into one flashable .bin (the
+# format ESP Web Tools / esptool's web flasher expects — bootloader +
+# partition table + boot_app0 + app all in one image at offset 0), and
+# attaches them to the GitHub Release for the pushed tag. The web flasher
+# in docs/ always downloads these two exact filenames from the *latest*
+# release, so re-running this on a new tag is all that's needed to update
+# it — no manifest changes required.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - env: meshnology_s3
+            chip: esp32s3
+            asset_name: mtg-life-counter-meshnology_s3.bin
+          - env: diymalls_c3
+            chip: esp32c3
+            asset_name: mtg-life-counter-diymalls_c3.bin
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
+
+      - name: Install PlatformIO and esptool
+        run: pip install -U platformio esptool
+
+      - name: Build ${{ matrix.env }}
+        run: pio run -e ${{ matrix.env }}
+
+      - name: Locate boot_app0.bin
+        id: bootapp0
+        run: |
+          path=$(find ~/.platformio -name boot_app0.bin | head -n1)
+          if [ -z "$path" ]; then
+            echo "boot_app0.bin not found under ~/.platformio" >&2
+            exit 1
+          fi
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
+      - name: Merge into one flashable image
+        run: |
+          BUILD_DIR=.pio/build/${{ matrix.env }}
+          esptool.py --chip ${{ matrix.chip }} merge_bin \
+            -o ${{ matrix.asset_name }} \
+            --flash_mode keep --flash_freq keep --flash_size keep \
+            0x0     "$BUILD_DIR/bootloader.bin" \
+            0x8000  "$BUILD_DIR/partitions.bin" \
+            0xe000  "${{ steps.bootapp0.outputs.path }}" \
+            0x10000 "$BUILD_DIR/firmware.bin"
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.asset_name }}
+          fail_on_unmatched_files: true

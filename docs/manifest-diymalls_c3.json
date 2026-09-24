@@ -1,0 +1,16 @@
+{
+  "name": "MTG Life Counter — DIYmalls ESP32-C3 (touch)",
+  "version": "latest",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-C3",
+      "parts": [
+        {
+          "path": "https://github.com/dnasty0525/mtg-life-counter/releases/latest/download/mtg-life-counter-diymalls_c3.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}

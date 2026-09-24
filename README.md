@@ -32,13 +32,30 @@ mix of these together, see below):
     onboard LED strip.
 - A USB-C cable to match (data-capable, not charge-only) to flash and
   power each board.
-- A computer with [PlatformIO](https://platformio.org/) installed to
-  build and flash the firmware (see Building, below).
+- Either a Chrome/Edge browser (for the **web flasher**, no install
+  needed — see below) or [PlatformIO](https://platformio.org/) if you'd
+  rather build from source (see Building, below).
 
 Nothing else is required — no soldering, no external LEDs/buttons/wiring.
 Table sync is pure firmware (ESP-NOW over the boards' built-in WiFi
 radios), so no extra hardware is needed for that either. Any combination
 of the two boards can share one table.
+
+## Web flashing (no install needed)
+
+**[dnasty0525.github.io/mtg-life-counter](https://dnasty0525.github.io/mtg-life-counter/)**
+— pick your board, hit Connect, choose the serial port, hit Install. It
+flashes the latest tagged release straight from your browser over
+[Web Serial](https://developer.chrome.com/docs/capabilities/serial) —
+same idea as the Knobby web flasher. Needs Chrome or Edge on desktop; the
+page explains what to do if the board doesn't show up as a port. If you'd
+rather build from source or you're on a browser/OS the web flasher
+doesn't support, see Building below instead.
+
+Every push of a `vX.Y.Z` tag rebuilds and re-uploads both boards'
+firmware automatically (`.github/workflows/release-firmware.yml`) — the
+web flasher always points at the latest release, so publishing a new
+tagged release is all it takes to update it.
 
 ## Features (v2)
 
@@ -103,6 +120,8 @@ src/screens/menu_screen.*     settings/utility screen (dice, new game, random fi
 src/screens/dice_overlay.*    d20 roller modal
 src/screens/player_detail_overlay.*  per-player poison/energy/commander-damage view (long-press a player)
 tools/pin_finder/         standalone GPIO-scanner sketch (kept for any future board with unknown pins)
+docs/                     the web flasher (GitHub Pages) — index.html + a manifest per board
+.github/workflows/        CI (build check on every push) + release firmware builds (on tag push)
 ```
 
 ## Building
@@ -257,6 +276,23 @@ round-display ESP32 boards, layout/UI polish, and progress on any of the
 v1/v2 items listed above are all useful. There's no formal process here;
 open an issue describing what you're seeing (board, PlatformIO env, and a
 serial log if it's a boot/crash problem) or send a PR.
+
+## Releasing a new version
+
+```
+git tag -a vX.Y.Z -m "vX.Y.Z"
+git push origin vX.Y.Z
+```
+
+That's it — pushing the tag triggers `release-firmware.yml`, which builds
+both boards, merges each into one flashable image, and attaches them to
+the GitHub Release for that tag. The web flasher always pulls from the
+*latest* release, so it updates automatically; no separate step needed.
+
+One-time setup for a fresh fork/clone of this repo: GitHub Pages needs to
+be pointed at `docs/` once (Settings → Pages → Source: Deploy from a
+branch → branch `master`, folder `/docs`) before
+`https://<you>.github.io/mtg-life-counter/` goes live.
 
 ## License
 

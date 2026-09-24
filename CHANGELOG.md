@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.1.0 — Web flasher
+
+- Added a browser-based flasher (`docs/`, served via GitHub Pages at
+  https://dnasty0525.github.io/mtg-life-counter/) — pick your board,
+  connect over USB, and flash the latest release straight from Chrome or
+  Edge via Web Serial. No PlatformIO install needed.
+- Added `.github/workflows/release-firmware.yml`: on every `vX.Y.Z` tag
+  push, builds both boards, merges each into one flashable image, and
+  attaches them to that tag's GitHub Release. The web flasher always
+  points at the latest release, so it updates itself automatically.
+
 ## v1.0.0 — First release
 
 Dual-board (Meshnology ESP32-S3 rotary / DIYmalls ESP32-C3 touch) MTG life
