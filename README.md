@@ -65,8 +65,11 @@ tagged release is all it takes to update it.
 - **Swipe left** on the counter screen to reach the **menu screen**
   (swipe right, or the Back button / encoder long-press, to return). It
   holds everything that isn't a life total:
-  - d20 dice roller (also still reachable via encoder long-press on the
-    counter screen)
+  - **Dice roller** — a d20 *or* two six-sided dice (2d6, shown as the
+    total plus each die, e.g. `9` / `5 + 4`). Two buttons here ("Roll d20"
+    / "Roll 2d6"), and the roller itself has `d20` / `2d6` tabs to switch
+    between them. Also reachable via encoder long-press on the counter
+    screen (it reopens in whichever mode you used last)
   - New Game button
   - Random first-player picker
   - Screen brightness slider
@@ -90,11 +93,23 @@ tagged release is all it takes to update it.
   turned on in the menu show up. Commander damage comes directly off that
   player's life total (same as any other hit) and the counter screen
   underneath updates live as you adjust it.
+- **Elimination indicator.** A player is out when they hit 0 life, take
+  21 damage from a single commander (needs Commander Damage turned on), or
+  reach 10 poison counters (needs Poison turned on). When it happens their
+  box shakes and flashes red three times; afterward it stays tinted red
+  with a red X between the `-`/`+` buttons, and their detail view says why
+  ("OUT: 10 poison"). It's derived purely from the current numbers, so it
+  shows on every table-synced device and clears itself if the change is
+  undone. Nothing is locked — an eliminated player's counters still
+  work, so a misclick is always fixable. (If a modal like the detail view
+  or dice roller is covering the counter screen when it happens, the
+  animation waits and plays as soon as you close it.)
 - Small poison/energy badge in the corner of each player's box on the
   main counter screen once those counters have a nonzero value
 - Rotary board: turning the knob adjusts whichever player is "selected"
   (ring highlight); click cycles selection; long-press opens the dice
-  roller from the counter screen, or starts the game from setup; on the
+  roller from the counter screen (in the roller: turn the knob to switch
+  d20 / 2d6, click to roll, long-press to close), or starts the game from setup; on the
   menu screen the knob scrolls the list instead, and long-press goes back
 
 ## Project layout
@@ -117,7 +132,7 @@ src/screens/counter_screen.*  the main life-total screen
 src/screens/menu_screen.*     settings/utility screen (dice, new game, random first player,
                                brightness, theme, LED, extra-counter toggles, multiplayer sync)
                                — swipe left to reach it
-src/screens/dice_overlay.*    d20 roller modal
+src/screens/dice_overlay.*    d20 / 2d6 roller modal
 src/screens/player_detail_overlay.*  per-player poison/energy/commander-damage view (long-press a player)
 tools/pin_finder/         standalone GPIO-scanner sketch (kept for any future board with unknown pins)
 docs/                     the web flasher (GitHub Pages) — index.html + a manifest per board

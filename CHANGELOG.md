@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.2.0 — 2d6 dice and elimination indicator
+
+- **2d6 roller** alongside the d20: new "Roll 2d6" button in the menu, and
+  `d20` / `2d6` tabs inside the roller (knob turn switches on the rotary
+  board). Shows the total plus both dice.
+- **Elimination indicator**: a player at 0 life, 10+ poison (with poison
+  tracking on), or 21+ damage from one commander (with commander tracking
+  on) now shakes/flashes red once, then stays tinted with a red X. The
+  detail view shows the reason. Derived from game state, so table-synced
+  devices show it too; no sync-protocol change.
+- Dice now use the ESP32 hardware RNG (`random()`); previously they used
+  libc `rand()`, which is never seeded on ESP32/Arduino, so every boot
+  rolled the same sequence.
+- The rotary knob now also drives the dice roller when it's opened from
+  the menu screen.
+- Poison changes made in the detail view now update the counter screen
+  underneath immediately (they previously only caught up on the next
+  refresh).
+
 ## v1.1.0 — Web flasher
 
 - Added a browser-based flasher (`docs/`, served via GitHub Pages at

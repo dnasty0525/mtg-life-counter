@@ -32,17 +32,105 @@ static lv_obj_t *s_screen = nullptr;
 static lv_obj_t *s_containers[MAX_PLAYERS];
 static lv_obj_t *s_life_labels[MAX_PLAYERS];
 static lv_obj_t *s_status_labels[MAX_PLAYERS]; /* small poison/energy badge, blank when nothing to show */
+static lv_obj_t *s_dead_marks[MAX_PLAYERS];    /* red X between the +/- buttons, shown only while eliminated */
+/* Whether each player was already eliminated the last time the screen
+ * refreshed. A false->true change is what triggers the one-shot
+ * elimination animation; true->false (a corrected misclick) cancels it.
+ * Re-seeded from the real state in counter_screen_create(), so rebuilding
+ * the screen (coming back from the menu, a remote layout change) never
+ * replays an animation for someone who was already out. */
+static bool s_was_eliminated[MAX_PLAYERS];
 /* player_count the currently-built widget tree was laid out for — used by
  * counter_screen_rebuild_if_active() (table sync) to tell "just refresh
  * the numbers" apart from "the player count itself changed under us,
  * rebuild the layout". */
 static uint8_t s_built_for_player_count = 0;
 
+/* ---- Elimination indicator --------------------------------------------
+ * Persistent: a faint red tint on the player's box, a red life total, and
+ * a small red X between the +/- buttons. One-shot when it happens: the box
+ * shakes and flashes red three times (~1s). Everything here derives from
+ * app_state_is_eliminated(), so table-synced devices all show it, and
+ * undoing the change that caused it clears it again. */
+#define ELIM_RESTING_TINT   LV_OPA_20
+#define ELIM_FLASH_PEAK     LV_OPA_70
+
+static void elim_flash_exec_cb(void *var, int32_t v) {
+    lv_obj_set_style_bg_opa((lv_obj_t *)var, (lv_opa_t)v, 0);
+}
+
+static void elim_shake_exec_cb(void *var, int32_t v) {
+    lv_obj_set_style_translate_x((lv_obj_t *)var, (lv_coord_t)v, 0);
+}
+
+static void elim_shake_ready_cb(lv_anim_t *a) {
+    lv_obj_set_style_translate_x((lv_obj_t *)a->var, 0, 0);
+}
+
+static void elim_flash_ready_cb(lv_anim_t *a) {
+    /* Settle on the resting tint — or none, if the player got revived
+     * while the flash was still playing. */
+    uint8_t idx = (uint8_t)(uintptr_t)a->user_data;
+    lv_obj_set_style_bg_opa((lv_obj_t *)a->var,
+        app_state_is_eliminated(idx) ? ELIM_RESTING_TINT : LV_OPA_TRANSP, 0);
+}
+
+static void play_elimination_anim(uint8_t i) {
+    lv_obj_t *cont = s_containers[i];
+    if (!cont) return;
+
+    lv_anim_del(cont, elim_flash_exec_cb);
+    lv_anim_del(cont, elim_shake_exec_cb);
+
+    lv_anim_t flash;
+    lv_anim_init(&flash);
+    lv_anim_set_var(&flash, cont);
+    lv_anim_set_values(&flash, LV_OPA_TRANSP, ELIM_FLASH_PEAK);
+    lv_anim_set_time(&flash, 180);
+    lv_anim_set_playback_time(&flash, 180);
+    lv_anim_set_repeat_count(&flash, 3);
+    lv_anim_set_exec_cb(&flash, elim_flash_exec_cb);
+    lv_anim_set_ready_cb(&flash, elim_flash_ready_cb);
+    lv_anim_set_user_data(&flash, (void *)(uintptr_t)i);
+    lv_anim_start(&flash);
+
+    lv_anim_t shake;
+    lv_anim_init(&shake);
+    lv_anim_set_var(&shake, cont);
+    lv_anim_set_values(&shake, -5, 5);
+    lv_anim_set_time(&shake, 55);
+    lv_anim_set_playback_time(&shake, 55);
+    lv_anim_set_repeat_count(&shake, 5);
+    lv_anim_set_path_cb(&shake, lv_anim_path_ease_in_out);
+    lv_anim_set_exec_cb(&shake, elim_shake_exec_cb);
+    lv_anim_set_ready_cb(&shake, elim_shake_ready_cb);
+    lv_anim_start(&shake);
+}
+
+static void cancel_elimination_anim(uint8_t i) {
+    lv_obj_t *cont = s_containers[i];
+    if (!cont) return;
+    lv_anim_del(cont, elim_flash_exec_cb);
+    lv_anim_del(cont, elim_shake_exec_cb);
+    lv_obj_set_style_translate_x(cont, 0, 0);
+}
+
 static void update_container_style(uint8_t i) {
     if (!s_containers[i]) return;
-    bool eliminated = (g_game.players[i].life <= 0);
+    bool eliminated = app_state_is_eliminated(i);
     lv_obj_set_style_text_color(s_life_labels[i],
         eliminated ? THEME_DANGER : THEME_LIFE_TEXT, 0);
+
+    /* Resting tint + X. While the one-shot flash is running it owns the
+     * background opacity, so leave that alone until it settles itself. */
+    if (!lv_anim_get(s_containers[i], elim_flash_exec_cb)) {
+        lv_obj_set_style_bg_opa(s_containers[i],
+            eliminated ? ELIM_RESTING_TINT : LV_OPA_TRANSP, 0);
+    }
+    if (s_dead_marks[i]) {
+        if (eliminated) lv_obj_clear_flag(s_dead_marks[i], LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(s_dead_marks[i], LV_OBJ_FLAG_HIDDEN);
+    }
 
 #if BOARD_HAS_ENCODER
     bool selected = (i == g_game.selected_player);
@@ -80,6 +168,19 @@ void counter_screen_refresh() {
         lv_label_set_text(s_life_labels[i], buf);
         update_container_style(i);
         update_status_badge(i);
+
+        bool now = app_state_is_eliminated(i);
+        if (now && !s_was_eliminated[i]) {
+            /* Only play it while the counter screen is actually in front.
+             * If a modal (player detail, dice) is covering it, leave
+             * s_was_eliminated alone so the next refresh after the modal
+             * closes picks the change up and plays it then. */
+            if (g_game.current_screen != SCREEN_COUNTER) continue;
+            play_elimination_anim(i);
+        } else if (!now && s_was_eliminated[i]) {
+            cancel_elimination_anim(i);
+        }
+        s_was_eliminated[i] = now;
     }
 }
 
@@ -125,6 +226,8 @@ static void build_player_widget(uint8_t idx) {
     lv_obj_set_size(cont, 96, 72);
     lv_obj_align(cont, LV_ALIGN_CENTER, pos.dx, pos.dy);
     lv_obj_set_style_radius(cont, 8, 0);
+    lv_obj_set_style_bg_color(cont, THEME_DANGER, 0); /* only visible via bg_opa: elimination tint/flash */
+    lv_obj_set_style_bg_opa(cont, LV_OPA_TRANSP, 0);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
     /* A swipe that starts on a player box (not just empty background)
      * should still reach the screen's own gesture handler and open the
@@ -157,6 +260,14 @@ static void build_player_widget(uint8_t idx) {
     lv_obj_set_style_text_font(minus_lbl, &lv_font_montserrat_16, 0);
     lv_obj_center(minus_lbl);
 
+    lv_obj_t *dead_mark = lv_label_create(cont);
+    lv_label_set_text(dead_mark, LV_SYMBOL_CLOSE);
+    lv_obj_set_style_text_color(dead_mark, THEME_DANGER, 0);
+    lv_obj_set_style_text_font(dead_mark, &lv_font_montserrat_14, 0);
+    lv_obj_align(dead_mark, LV_ALIGN_BOTTOM_MID, 0, -6);
+    lv_obj_add_flag(dead_mark, LV_OBJ_FLAG_HIDDEN);
+    s_dead_marks[idx] = dead_mark;
+
     lv_obj_t *plus_btn = lv_btn_create(cont);
     lv_obj_set_size(plus_btn, 34, 26);
     lv_obj_align(plus_btn, LV_ALIGN_BOTTOM_RIGHT, -4, 0);
@@ -173,6 +284,7 @@ static void encoder_handler(input_encoder_event_t evt, int16_t data) {
     if (dice_overlay_is_open()) {
         /* While the dice overlay is up, the knob controls it instead. */
         if (evt == INPUT_ENC_CLICK) dice_overlay_handle_roll();
+        if (evt == INPUT_ENC_TURN) dice_overlay_toggle_mode(); /* d20 <-> 2d6 */
         if (evt == INPUT_ENC_LONG_PRESS) dice_overlay_close();
         return;
     }
@@ -212,10 +324,15 @@ void counter_screen_create() {
         s_containers[i] = nullptr;
         s_life_labels[i] = nullptr;
         s_status_labels[i] = nullptr;
+        s_dead_marks[i] = nullptr;
+        s_was_eliminated[i] = false;
     }
 
     for (uint8_t i = 0; i < g_game.player_count; i++) {
         build_player_widget(i);
+        /* Seed from the real state so just (re)building this screen never
+         * replays the elimination animation for someone already out. */
+        s_was_eliminated[i] = app_state_is_eliminated(i);
     }
 
     /* Swipe left anywhere on the background to reach the menu screen (d20
@@ -265,6 +382,7 @@ void counter_screen_destroy() {
         s_containers[i] = nullptr;
         s_life_labels[i] = nullptr;
         s_status_labels[i] = nullptr;
+        s_dead_marks[i] = nullptr;
     }
 }
 

@@ -104,6 +104,24 @@ void app_state_reset_storm() {
     g_game.storm_count = 0;
 }
 
+elimination_reason_t app_state_elimination_reason(uint8_t player_idx, uint8_t *from_player_idx) {
+    if (player_idx >= g_game.player_count) return ELIM_NONE;
+    const player_state_t &p = g_game.players[player_idx];
+
+    if (p.life <= 0) return ELIM_LIFE;
+    if (g_game.track_poison && p.poison >= POISON_DEATH_THRESHOLD) return ELIM_POISON;
+    if (g_game.track_commander_damage) {
+        for (uint8_t j = 0; j < g_game.player_count; j++) {
+            if (j == player_idx) continue;
+            if (p.commander_damage[j] >= COMMANDER_DEATH_THRESHOLD) {
+                if (from_player_idx) *from_player_idx = j;
+                return ELIM_COMMANDER;
+            }
+        }
+    }
+    return ELIM_NONE;
+}
+
 uint8_t app_state_pick_random_player() {
     if (g_game.player_count <= 1) return 0;
     /* Arduino's random(), seeded from the hardware RNG in main.cpp's

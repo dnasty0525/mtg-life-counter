@@ -58,7 +58,8 @@ static void new_game_btn_cb(lv_event_t *e) {
     menu_screen_destroy();
 }
 
-static void dice_btn_cb(lv_event_t *e) { (void)e; dice_overlay_open(); }
+static void dice_btn_cb(lv_event_t *e) { (void)e; dice_overlay_open(DICE_MODE_D20); }
+static void dice2d6_btn_cb(lv_event_t *e) { (void)e; dice_overlay_open(DICE_MODE_2D6); }
 
 static void random_first_btn_cb(lv_event_t *e) {
     (void)e;
@@ -255,6 +256,14 @@ static lv_obj_t *labeled_switch(lv_obj_t *parent, const char *text, bool initial
 
 #if BOARD_HAS_ENCODER
 static void encoder_handler(input_encoder_event_t evt, int16_t data) {
+    if (dice_overlay_is_open()) {
+        /* Dice overlay opened from the menu's Roll buttons: knob drives it
+         * the same way it does when opened from the counter screen. */
+        if (evt == INPUT_ENC_CLICK) dice_overlay_handle_roll();
+        if (evt == INPUT_ENC_TURN) dice_overlay_toggle_mode();
+        if (evt == INPUT_ENC_LONG_PRESS) dice_overlay_close();
+        return;
+    }
     if (g_game.current_screen != SCREEN_MENU) return;
     if (!s_screen) return; /* belt-and-suspenders: see menu_screen_destroy() */
     switch (evt) {
@@ -299,6 +308,7 @@ void menu_screen_create() {
         action_button(s_screen, "New Game", new_game_btn_cb);
     }
     action_button(s_screen, "Roll d20", dice_btn_cb);
+    action_button(s_screen, "Roll 2d6", dice2d6_btn_cb);
 
     action_button(s_screen, "Random First Player", random_first_btn_cb);
     s_random_result_lbl = lv_label_create(s_screen);
@@ -489,7 +499,7 @@ void menu_screen_create() {
 
 void menu_screen_destroy() {
     /* Same reasoning as counter_screen_destroy(): the dice overlay can be
-     * opened from here too ("Roll d20"), and it's parented to this screen
+     * opened from here too ("Roll d20" / "Roll 2d6"), and it's parented to this screen
      * — if it's still open when this screen tears down, tell it before
      * deleting s_screen so it doesn't keep reporting itself as open and
      * pointing at freed memory afterward. */

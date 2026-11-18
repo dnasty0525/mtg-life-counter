@@ -13,6 +13,7 @@
 #define MAX_PLAYERS 4
 #define DEFAULT_START_LIFE 40   /* Commander default; setup screen can change it */
 #define POISON_DEATH_THRESHOLD 10
+#define COMMANDER_DEATH_THRESHOLD 21
 
 typedef enum {
     SCREEN_SETUP = 0,
@@ -24,13 +25,12 @@ typedef enum {
 
 typedef struct {
     int16_t life;
-    bool active;              /* false once a player is eliminated (life <= 0), still shown greyed out */
+    bool active;              /* legacy/unused — use app_state_is_eliminated() instead */
     int16_t poison;
     int16_t energy;
     /* commander_damage[from] = damage this player has taken from
-     * players[from]'s commander. Self-index unused. 21+ is commander-kill
-     * in the paper rules; we just display the number and let players
-     * apply the rule themselves. */
+     * players[from]'s commander. Self-index unused. 21+ from a single
+     * commander eliminates the player (see app_state_elimination_reason()). */
     int16_t commander_damage[MAX_PLAYERS];
 } player_state_t;
 
@@ -73,6 +73,25 @@ void app_state_adjust_energy(uint8_t player_idx, int16_t delta);
 void app_state_adjust_commander_damage(uint8_t player_idx, uint8_t from_player_idx, int16_t delta);
 void app_state_adjust_storm(int16_t delta);
 void app_state_reset_storm();
+
+/* Why a player is out of the game, if they are. Checked in this order, so
+ * a player who is out for more than one reason reports the first match. */
+typedef enum {
+    ELIM_NONE = 0,
+    ELIM_LIFE,        /* life <= 0 */
+    ELIM_POISON,      /* poison >= POISON_DEATH_THRESHOLD (only while poison tracking is on) */
+    ELIM_COMMANDER,   /* 21+ damage from one commander (only while commander tracking is on) */
+} elimination_reason_t;
+
+/* Derived purely from the current state, never stored — so it's identical
+ * on every table-synced device (they all share the same life/poison/
+ * commander numbers) and un-does itself automatically if a misclick is
+ * corrected. For ELIM_COMMANDER, *from_player_idx (if non-null) is set to
+ * the opponent who dealt the 21. */
+elimination_reason_t app_state_elimination_reason(uint8_t player_idx, uint8_t *from_player_idx = nullptr);
+inline bool app_state_is_eliminated(uint8_t player_idx) {
+    return app_state_elimination_reason(player_idx) != ELIM_NONE;
+}
 
 /* Returns a random valid player index in [0, player_count). Uses the
  * hardware RNG seeded once at boot (see main.cpp). */

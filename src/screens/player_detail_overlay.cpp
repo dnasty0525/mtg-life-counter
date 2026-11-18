@@ -10,6 +10,7 @@ static uint8_t s_player_idx = 0;
  * to, same pattern as dice_overlay. */
 static app_screen_t s_return_screen = SCREEN_COUNTER;
 
+static lv_obj_t *s_elim_lbl = nullptr;   /* "OUT: ..." line under the title, hidden while the player is alive */
 static lv_obj_t *s_poison_lbl = nullptr;
 static lv_obj_t *s_energy_lbl = nullptr;
 static lv_obj_t *s_cmd_lbls[MAX_PLAYERS];
@@ -18,6 +19,28 @@ static uint8_t s_cmd_lbl_owner[MAX_PLAYERS]; /* which opponent index each s_cmd_
 static void close_btn_cb(lv_event_t *e) {
     (void)e;
     player_detail_overlay_close();
+}
+
+/* Shows why this player is out (0 life / poison / commander damage), live
+ * as the steppers below change — hidden entirely while they're alive so it
+ * takes no space in the flex layout. */
+static void refresh_elim_label() {
+    if (!s_elim_lbl) return;
+    uint8_t from = 0;
+    elimination_reason_t why = app_state_elimination_reason(s_player_idx, &from);
+    if (why == ELIM_NONE) {
+        lv_obj_add_flag(s_elim_lbl, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    char buf[32];
+    switch (why) {
+        case ELIM_LIFE:      snprintf(buf, sizeof(buf), "OUT: 0 life"); break;
+        case ELIM_POISON:    snprintf(buf, sizeof(buf), "OUT: %d poison", POISON_DEATH_THRESHOLD); break;
+        case ELIM_COMMANDER: snprintf(buf, sizeof(buf), "OUT: %d cmdr dmg (P%d)", COMMANDER_DEATH_THRESHOLD, from + 1); break;
+        default:             buf[0] = '\0'; break;
+    }
+    lv_label_set_text(s_elim_lbl, buf);
+    lv_obj_clear_flag(s_elim_lbl, LV_OBJ_FLAG_HIDDEN);
 }
 
 static void refresh_poison_label() {
@@ -39,8 +62,11 @@ static void refresh_cmd_label(uint8_t slot) {
     lv_label_set_text(s_cmd_lbls[slot], buf);
 }
 
-static void poison_minus_cb(lv_event_t *e) { (void)e; app_state_adjust_poison(s_player_idx, -1); refresh_poison_label(); }
-static void poison_plus_cb(lv_event_t *e)  { (void)e; app_state_adjust_poison(s_player_idx, +1); refresh_poison_label(); }
+/* Each stepper also refreshes the counter screen underneath, so its
+ * eliminated styling stays current. The one-shot animation itself is held
+ * back until this overlay closes (see counter_screen_refresh()). */
+static void poison_minus_cb(lv_event_t *e) { (void)e; app_state_adjust_poison(s_player_idx, -1); refresh_poison_label(); refresh_elim_label(); counter_screen_refresh(); }
+static void poison_plus_cb(lv_event_t *e)  { (void)e; app_state_adjust_poison(s_player_idx, +1); refresh_poison_label(); refresh_elim_label(); counter_screen_refresh(); }
 static void energy_minus_cb(lv_event_t *e) { (void)e; app_state_adjust_energy(s_player_idx, -1); refresh_energy_label(); }
 static void energy_plus_cb(lv_event_t *e)  { (void)e; app_state_adjust_energy(s_player_idx, +1); refresh_energy_label(); }
 
@@ -48,6 +74,7 @@ static void cmd_minus_cb(lv_event_t *e) {
     uint8_t slot = (uint8_t)(uintptr_t)lv_event_get_user_data(e);
     app_state_adjust_commander_damage(s_player_idx, s_cmd_lbl_owner[slot], -1);
     refresh_cmd_label(slot);
+    refresh_elim_label();
     /* Commander damage moves life too now (app_state.cpp) — refresh the
      * counter screen underneath so its life total reflects that live,
      * instead of only catching up the next time it's rebuilt. This
@@ -59,6 +86,7 @@ static void cmd_plus_cb(lv_event_t *e) {
     uint8_t slot = (uint8_t)(uintptr_t)lv_event_get_user_data(e);
     app_state_adjust_commander_damage(s_player_idx, s_cmd_lbl_owner[slot], +1);
     refresh_cmd_label(slot);
+    refresh_elim_label();
     counter_screen_refresh();
 }
 
@@ -140,6 +168,11 @@ void player_detail_overlay_open(uint8_t player_idx) {
     lv_obj_set_style_text_color(title, theme_accent(), 0);
     lv_obj_set_style_text_font(title, &lv_font_montserrat_20, 0);
 
+    s_elim_lbl = lv_label_create(s_overlay);
+    lv_obj_set_style_text_color(s_elim_lbl, THEME_DANGER, 0);
+    lv_obj_set_style_text_font(s_elim_lbl, &lv_font_montserrat_12, 0);
+    refresh_elim_label();
+
     if (g_game.track_poison) {
         s_poison_lbl = stepper_row(s_overlay, "Poison", g_game.players[player_idx].poison,
                                     poison_minus_cb, poison_plus_cb, nullptr);
@@ -191,7 +224,12 @@ void player_detail_overlay_close() {
     s_poison_lbl = nullptr;
     s_energy_lbl = nullptr;
     for (uint8_t i = 0; i < MAX_PLAYERS; i++) s_cmd_lbls[i] = nullptr;
+    s_elim_lbl = nullptr;
     g_game.current_screen = s_return_screen;
+    /* If something here (poison/commander damage) just eliminated a
+     * player, this is when their animation plays — the counter screen was
+     * hidden behind this overlay when it happened. */
+    counter_screen_refresh();
 }
 
 bool player_detail_overlay_is_open() {
@@ -204,6 +242,7 @@ void player_detail_overlay_discard() {
      * dice_overlay_discard(). The screen tearing itself down owns this
      * object as a child and will free it; we just stop pointing at it. */
     s_overlay = nullptr;
+    s_elim_lbl = nullptr;
     s_poison_lbl = nullptr;
     s_energy_lbl = nullptr;
     for (uint8_t i = 0; i < MAX_PLAYERS; i++) s_cmd_lbls[i] = nullptr;
