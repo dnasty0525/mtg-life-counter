@@ -7,7 +7,7 @@
       "chipFamily": "ESP32-S3",
       "parts": [
         {
-          "path": "https://github.com/dnasty0525/mtg-life-counter/releases/latest/download/mtg-life-counter-meshnology_s3.bin",
+          "path": "firmware/mtg-life-counter-meshnology_s3.bin",
           "offset": 0
         }
       ]

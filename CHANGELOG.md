@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Fix the web flasher failing with "Failed to fetch": browsers can't fetch
+  GitHub release assets (no CORS headers on GitHub's download servers).
+  `release-firmware.yml` now also commits the merged images to
+  `docs/firmware/`, and the manifests point there (same origin as the
+  page). Release assets are still attached for direct download.
+
 ## v1.2.0 — 2d6 dice and elimination indicator
 
 - **2d6 roller** alongside the d20: new "Roll 2d6" button in the menu, and

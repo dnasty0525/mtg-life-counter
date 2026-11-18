@@ -52,10 +52,11 @@ page explains what to do if the board doesn't show up as a port. If you'd
 rather build from source or you're on a browser/OS the web flasher
 doesn't support, see Building below instead.
 
-Every push of a `vX.Y.Z` tag rebuilds and re-uploads both boards'
-firmware automatically (`.github/workflows/release-firmware.yml`) — the
-web flasher always points at the latest release, so publishing a new
-tagged release is all it takes to update it.
+Every push of a `vX.Y.Z` tag rebuilds both boards' firmware automatically
+(`.github/workflows/release-firmware.yml`), attaches it to the release,
+and also commits it to `docs/firmware/` so the web flasher serves it from
+the same site. (It can't fetch release assets directly — GitHub's download
+servers send no CORS headers, so browsers block it.)
 
 ## Features (v2)
 
@@ -300,9 +301,12 @@ git push origin vX.Y.Z
 ```
 
 That's it — pushing the tag triggers `release-firmware.yml`, which builds
-both boards, merges each into one flashable image, and attaches them to
-the GitHub Release for that tag. The web flasher always pulls from the
-*latest* release, so it updates automatically; no separate step needed.
+both boards, merges each into one flashable image, attaches them to the
+GitHub Release for that tag, and commits them to `docs/firmware/` on the
+default branch, which GitHub Pages then serves to the web flasher. (To
+rebuild just the web flasher's firmware without cutting a release: Actions
+tab → Release firmware → Run workflow.) Because the workflow commits to
+the default branch, `git pull` before your next push.
 
 One-time setup for a fresh fork/clone of this repo: GitHub Pages needs to
 be pointed at `docs/` once (Settings → Pages → Source: Deploy from a

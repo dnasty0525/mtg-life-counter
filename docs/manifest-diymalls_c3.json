@@ -7,7 +7,7 @@
       "chipFamily": "ESP32-C3",
       "parts": [
         {
-          "path": "https://github.com/dnasty0525/mtg-life-counter/releases/latest/download/mtg-life-counter-diymalls_c3.bin",
+          "path": "firmware/mtg-life-counter-diymalls_c3.bin",
           "offset": 0
         }
       ]

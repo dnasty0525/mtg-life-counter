@@ -1,12 +1,20 @@
 name: Release firmware
 
-# Builds both boards' firmware, merges each into one flashable .bin (the
-# format ESP Web Tools / esptool's web flasher expects — bootloader +
-# partition table + boot_app0 + app all in one image at offset 0), and
-# attaches them to the GitHub Release for the pushed tag. The web flasher
-# in docs/ always downloads these two exact filenames from the *latest*
-# release, so re-running this on a new tag is all that's needed to update
-# it — no manifest changes required.
+# Builds both boards' firmware and merges each into one flashable .bin (the
+# format ESP Web Tools expects — bootloader + partition table + boot_app0 +
+# app, all in one image at offset 0). Then:
+#
+#   1. On a tag push (v*): attaches both .bin files to that tag's GitHub
+#      Release, for people who want to download them directly.
+#   2. Always: copies both .bin files into docs/firmware/ on the default
+#      branch, so GitHub Pages serves them next to the web flasher.
+#
+# Step 2 exists because browsers can't fetch release assets directly —
+# GitHub's download servers send no CORS headers, so the web flasher fails
+# with "Failed to fetch". Same-origin files on Pages avoid that entirely.
+#
+# You can also run this by hand (Actions tab -> Release firmware -> Run
+# workflow) to rebuild the web flasher's firmware without making a release.
 
 on:
   push:
@@ -15,7 +23,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-release:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -74,8 +82,56 @@ jobs:
             0xe000  "${{ steps.bootapp0.outputs.path }}" \
             0x10000 "$BUILD_DIR/firmware.bin"
 
-      - name: Upload to release
+      - name: Keep the image for the web-flasher job
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.env }}
+          path: ${{ matrix.asset_name }}
+          if-no-files-found: error
+
+      - name: Attach to the GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ matrix.asset_name }}
           fail_on_unmatched_files: true
+
+  publish-web-flasher:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Always work on the default branch (not the tag that triggered this
+      # run) — that's the branch GitHub Pages serves /docs from.
+      - name: Check out default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Download both images
+        uses: actions/download-artifact@v4
+        with:
+          pattern: firmware-*
+          path: incoming
+          merge-multiple: true
+
+      - name: Copy into docs/firmware
+        run: |
+          mkdir -p docs/firmware
+          cp incoming/mtg-life-counter-meshnology_s3.bin docs/firmware/
+          cp incoming/mtg-life-counter-diymalls_c3.bin docs/firmware/
+          ls -l docs/firmware
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/firmware
+          if git diff --cached --quiet; then
+            echo "Web flasher firmware already up to date."
+            exit 0
+          fi
+          git commit -m "Update web flasher firmware (${GITHUB_REF_NAME})"
+          git pull --rebase origin "${{ github.event.repository.default_branch }}"
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"
